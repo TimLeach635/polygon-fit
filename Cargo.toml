@@ -6,3 +6,6 @@ edition = "2024"
 [dependencies]
 geo = "0.32.0"
 nalgebra = "0.34.1"
+num-traits = "0.2.19"
+parameterized = "2.1.0"
+rust_intervals = "1.0.0"
