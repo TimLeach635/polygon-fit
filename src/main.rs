@@ -2,6 +2,7 @@ use nalgebra::vector;
 
 use crate::{fit::valid_triples, polygon::Polygon};
 
+mod angle_region;
 mod fit;
 mod polygon;
 

@@ -463,6 +463,7 @@ version = "0.1.0"
 dependencies = [
  "geo",
  "nalgebra",
+ "rust_intervals",
 ]
 
 [[package]]
@@ -564,6 +565,12 @@ dependencies = [
  "num-traits",
  "smallvec",
 ]
+
+[[package]]
+name = "rust_intervals"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "295af0e859bebaf896b866b3be201010cb061ef38fdd7e40a15c150cd6e6b61d"
 
 [[package]]
 name = "safe_arch"

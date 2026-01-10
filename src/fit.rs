@@ -1,6 +1,9 @@
-use nalgebra::Vector2;
+use nalgebra::{Vector2, Vector3, vector};
 
-use crate::polygon::{Edge, Polygon};
+use crate::{
+    angle_region::AngleIntervalSet,
+    polygon::{Edge, Polygon},
+};
 
 /// Compute the sine of the anticlockwise angle from `from` to `to`.
 ///
@@ -92,6 +95,150 @@ pub(crate) fn valid_triples(polygon: &Polygon) -> Vec<(IndexTriple, EdgeTriple)>
     }
 
     result
+}
+
+/// The "critical region" is the region of (N_A)-dimensional space into which the... okay, I don't
+/// have a nice name for it, but there's a point in this space that is generated from the polygons,
+/// and if that point falls into the critical region then we have a polygon fit.
+///
+/// The point is fixed if you don't allow the polygons to rotate (i.e. you are checking for a
+/// translational fit only), but if you do allow rotation then the point actually follows a really
+/// complicated piecewise path through the space.
+///
+/// The method, then, hinges on being able to rigorously determine when that poorly-behaved path
+/// actually dips into the region. (Or, rather, whether or not it ever does - but it's no fun to
+/// just be told "yes, this polygon fits inside the other", you want to be able to see!)
+///
+/// Anyway. The critical region is actually relatively well-behaved - it is bounded by a number of
+/// hyperplanes, and it is those hyperplanes that I represent with this `CriticalRegionBoundary`
+/// struct.
+///
+/// You can represent a hyperplane in any dimension with just two values - a normal vector to the
+/// plane, and a constant - this mirrors the dot product formulation of a line (because a line is a
+/// hyperplane in 2D!), x dot n = c.
+///
+/// We can simplify our formulation of this, though. Because of how the region is constructed, each
+/// of its boundaries actually really only extends in three dimensions, not through the whole space
+/// - this is represented by its normal vector having the value zero in all but three of its
+/// components.
+///
+/// Therefore, we only store a 3D normal vector, along with the indices that each of the three
+/// components actually are.
+///
+/// Finally, we don't need to store a constant, because all of these hyperplanes pass through the
+/// origin, and therefore the constant is always equal to zero.
+struct CriticalRegionBoundary {
+    indices: IndexTriple,
+    normal: Vector3<f64>,
+    threshold: f64,
+}
+
+fn critical_region(polygon: &Polygon) -> Vec<CriticalRegionBoundary> {
+    let mut result = Vec::new();
+    let valid_triples = valid_triples(polygon);
+
+    for (indices, (edge_1, edge_2, edge_3)) in valid_triples {
+        let n_x: Vector3<f64> = vector![edge_1.n.x, edge_2.n.x, edge_3.n.x];
+        let n_y: Vector3<f64> = vector![edge_1.n.y, edge_2.n.y, edge_3.n.y];
+        let cs: Vector3<f64> = vector![edge_1.c, edge_2.c, edge_3.c];
+
+        let n_p: Vector3<f64> = n_x.cross(&n_y);
+        let threshold = n_p.dot(&cs);
+
+        result.push(CriticalRegionBoundary {
+            indices,
+            normal: n_p,
+            threshold,
+        });
+    }
+
+    result
+}
+
+/// Represents a fit of the inner polygon inside the outer polygon.
+///
+/// The translation assumes that both the inner and outer polygon have already been translated such
+/// that their centroids lie on the origin.
+///
+/// The rotation is in radians, and should be applied anticlockwise.
+struct Fit {
+    translation: Vector2<f64>,
+    rotation: f64,
+}
+
+fn cross_2d(v_1: &Vector2<f64>, v_2: &Vector2<f64>) -> f64 {
+    v_1.x * v_2.y - v_1.y * v_2.x
+}
+
+fn find_single_boundary_fit_range(
+    // TODO: It's really messy to have to pass in the normals separately like this. It seems like
+    // I'm separating out the parts too much, and actually they remain more linked than I am able
+    // to handle.
+    (n_1, n_2, n_3): (&Vector2<f64>, &Vector2<f64>, &Vector2<f64>),
+    boundary: &CriticalRegionBoundary,
+    inner: &Polygon,
+) -> Option<AngleIntervalSet> {
+    let mut result = AngleIntervalSet::whole_circle();
+
+    // Iterate over all possible choices of inner vertex for each of the three indices of the
+    // boundary
+    let n_b = inner.n_vertices();
+    // TODO: Replace nested `for` loops with itertools shortcut
+    for j_1 in 0..n_b {
+        let b_1: Vector2<f64> = inner
+            .vertices()
+            .get(j_1)
+            .expect("j_1 should never exceed the largest index of vertices of the inner polygon")
+            .clone();
+
+        let mut cos_coeff = n_1.dot(&b_1);
+        let mut sin_coeff = cross_2d(&n_1, &b_1);
+
+        for j_2 in 0..n_b {
+            let b_2: Vector2<f64> = inner
+                .vertices()
+                .get(j_2)
+                .expect(
+                    "j_2 should never exceed the largest index of vertices of the inner polygon",
+                )
+                .clone();
+
+            cos_coeff += n_2.dot(&b_2);
+            sin_coeff += cross_2d(&n_2, &b_2);
+
+            for j_3 in 0..n_b {
+                let b_3: Vector2<f64> = inner
+                    .vertices()
+                    .get(j_3)
+                    .expect("j_3 should never exceed the largest index of vertices of the inner polygon")
+                    .clone();
+
+                cos_coeff += n_3.dot(&b_3);
+                sin_coeff += cross_2d(&n_3, &b_3);
+
+                let single_region = AngleIntervalSet::where_lower(
+                    cos_coeff,
+                    sin_coeff,
+                    boundary.threshold,
+                )
+                .expect(
+                    "Should be a non-empty interval as the threshold should be greater than zero",
+                );
+
+                if let Some(new_region) = result.intersect(&single_region) {
+                    result = new_region;
+                } else {
+                    return None;
+                }
+            }
+        }
+    }
+
+    Some(result)
+}
+
+fn find_fit(outer: &Polygon, inner: &Polygon) -> Option<Fit> {
+    let critical_region = critical_region(outer);
 }
 
 #[cfg(test)]

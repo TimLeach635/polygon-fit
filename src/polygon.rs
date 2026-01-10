@@ -15,7 +15,7 @@ pub(crate) struct Polygon(geo::Polygon);
 #[derive(Clone)]
 pub(crate) struct Edge {
     pub(crate) n: Vector2<f64>,
-    pub(crate) _c: f64,
+    pub(crate) c: f64,
 }
 
 impl Polygon {
@@ -33,7 +33,7 @@ impl Polygon {
         self.0.exterior().coords().count() - 1
     }
 
-    pub fn _vertices(&self) -> Vec<Vector2<f64>> {
+    pub fn vertices(&self) -> Vec<Vector2<f64>> {
         self.0
             .exterior()
             .coords()
@@ -69,7 +69,7 @@ impl Polygon {
             let constant = unit_normal.dot(&vector![from.x, from.y]);
             result.push(Edge {
                 n: unit_normal,
-                _c: constant,
+                c: constant,
             });
         }
         result
@@ -94,7 +94,7 @@ mod test {
 
         // Act
         let poly = Polygon::from_vertices(&in_vertices);
-        let out_vertices = poly._vertices();
+        let out_vertices = poly.vertices();
 
         // Assert
         assert_eq!(out_vertices.len(), 4);
@@ -117,7 +117,7 @@ mod test {
 
         // Act
         let poly = Polygon::from_vertices(&in_vertices);
-        let out_vertices = poly._vertices();
+        let out_vertices = poly.vertices();
 
         // Assert
         assert_eq!(out_vertices.len(), 4);
@@ -136,7 +136,7 @@ mod test {
 
         // Act
         let poly = Polygon::from_vertices(&in_vertices);
-        let out_vertices = poly._vertices();
+        let out_vertices = poly.vertices();
         // find index of origin - we don't care which vertex comes first, only that the cyclic
         // order is correct
         let origin_idx = out_vertices
